@@ -11,7 +11,7 @@ from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ================= AYARLAR =================
-TELEGRAM_TOKEN = "8047383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
+TELEGRAM_TOKEN = "8847383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
 GITHUB_TOKEN = "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"  # GitHub'dan aldığınız ghp_ ile başlayan tokenı buraya yazın
 GITHUB_REPO = "frtnbura/firtina-lojistik"
 WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/index.html"
