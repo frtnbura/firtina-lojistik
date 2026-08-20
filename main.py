@@ -8,7 +8,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 # ================= AYARLAR =================
 TELEGRAM_TOKEN = "8047383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
-# Yukarıda kopyaladığınız Google Apps Script URL'sini buraya yapıştırın:
 GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbxZ7-UaIdc9iMzW6N4svrHKXol7E7R37RicIhLyKOaPs2KNIOlOJkZ31v1eHLxmtITy5A/exec"
 WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/index.html"
 # ============================================
@@ -24,19 +23,20 @@ def run_flask():
     web_app.run(host='0.0.0.0', port=port)
 
 def google_tabloya_kaydet(modul, basliklar, satir):
-    payload = {
-        "modul": modul,
-        "basliklar": basliklar,
-        "satir": satir
-    }
-    r = requests.post(GOOGLE_SHEET_URL, json=payload)
-    if r.status_code != 200:
-        raise Exception(f"Google Bağlantı Hatası: {r.text}")
+    try:
+        payload = {
+            "modul": modul,
+            "basliklar": basliklar,
+            "satir": satir
+        }
+        requests.post(GOOGLE_SHEET_URL, json=payload, timeout=10)
+    except Exception as e:
+        print("Tabloya yazma hatasi:", e)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [[KeyboardButton(text="⚡ FIRTINA LOJİSTİK YÖNETİM", web_app=WebAppInfo(url=WEBAPP_URL))]]
     await update.message.reply_text(
-        "🚛 *Fırtına Lojistik 7/24 Bulut Sistemi Aktif!*\n\nAşağıdaki butona tıklayarak sefer, masraf, yakıt ve veresiye kayıtlarınızı girebilirsiniz.",
+        "🚛 *Fırtına Lojistik 7/24 Bulut Sistemi Aktif!*\n\nAşağıdaki butona tıklayarak sefer, masraf ve veresiye kayıtlarınızı girebilirsiniz.",
         reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True),
         parse_mode="Markdown"
     )
@@ -49,13 +49,21 @@ async def veri_yakala(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if modul == "nakliye_sefer":
             basliklar = ["Tarih", "Plaka", "Şoför", "Tonaj", "Birim Fiyat", "Yakıt", "Yükleme", "Harcırah", "Net Kar"]
-            satir = [veri.get("tarih"), veri.get("plaka"), veri.get("sofor"), veri.get("tonaj"), veri.get("fiyat"), veri.get("yakit"), veri.get("yukleme"), veri.get("harcirah"), veri.get("net")]
+            satir = [
+                veri.get("tarih"), veri.get("plaka"), veri.get("sofor"), 
+                veri.get("tonaj"), veri.get("fiyat"), veri.get("yakit"), 
+                veri.get("yukleme"), veri.get("harcirah"), veri.get("net")
+            ]
             google_tabloya_kaydet("Nakliye Seferleri", basliklar, satir)
             await update.message.reply_text(f"✅ *Sefer Tabloya Kaydedildi!*\n📅 `{veri.get('tarih')}` | 🚛 `{veri.get('plaka')}`\n⚖️ *{veri.get('tonaj')} Ton* | 💵 *Net: {veri.get('net')} TL*", parse_mode="Markdown")
 
         elif modul == "dikili_sefer":
             basliklar = ["Tarih", "Bölge", "İstif", "Tür", "Tonaj", "Fiyat", "Tutar", "Plaka"]
-            satir = [veri.get("tarih"), veri.get("bolge"), veri.get("istif"), veri.get("tur"), veri.get("tonaj"), veri.get("fiyat"), veri.get("tutar"), veri.get("plaka")]
+            satir = [
+                veri.get("tarih"), veri.get("bolge"), veri.get("istif"), 
+                veri.get("tur"), veri.get("tonaj"), veri.get("fiyat"), 
+                veri.get("tutar"), veri.get("plaka")
+            ]
             google_tabloya_kaydet("Dikili Seferleri", basliklar, satir)
             await update.message.reply_text(f"🌲 *Dikili Seferi Kaydedildi!*\n📍 `{veri.get('bolge')}` | 🪵 `{veri.get('tur')}`\n💰 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
@@ -71,13 +79,19 @@ async def veri_yakala(update: Update, context: ContextTypes.DEFAULT_TYPE):
             google_tabloya_kaydet("Genel Masraflar", basliklar, satir)
             await update.message.reply_text(f"🛠️ *Masraf Kaydedildi!*\n🏷️ `{veri.get('kategori')}` | 💸 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
+        else:
+            await update.message.reply_text(f"⚠️ Bilinmeyen modül: `{modul}`")
+
     except Exception as e:
         await update.message.reply_text(f"❌ *Kayıt işlenirken hata oluştu:*\n`{str(e)}`", parse_mode="Markdown")
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask, daemon=True).start()
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+    
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, veri_yakala))
     print("Fırtına Lojistik Telegram Köprüsü Başlatıldı...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
