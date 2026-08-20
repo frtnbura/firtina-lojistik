@@ -10,6 +10,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 TOKEN = "8847383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
 WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/"  # HTML dosyanızın HTTPS linki
+GITHUB_TOKEN = "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"
+GITHUB_REPO = "frtnbura/firtina-lojistik"
 
 # Mevcut Masaüstü Dosyaları
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
