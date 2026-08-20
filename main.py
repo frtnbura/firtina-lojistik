@@ -9,7 +9,7 @@ from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = "8847383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
-WEBAPP_URL = "https://firtina-loji-sti-k.vercel.app/"  # HTML dosyanızın HTTPS linki
+WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/"  # HTML dosyanızın HTTPS linki
 
 # Mevcut Masaüstü Dosyaları
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
