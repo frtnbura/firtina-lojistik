@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FIRTINA LOJİSTİK - Mobil Yönetim</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --nv-black: #0b0b0e;
+      --nv-panel: #121216;
+      --nv-card: #1a1a20;
+      --nv-green: #76b900;
+      --nv-green-hover: #5c9600;
+      --nv-border: #2e3442;
+      --text-white: #ffffff;
+      --text-gray: #a0a0a0;
+      --btn-blue: #2980b9;
+      --btn-red: #c0392b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--nv-black); color: var(--text-white); padding: 12px; font-size: 13px; }
+
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--nv-panel); border-bottom: 2px solid var(--nv-green); border-radius: 8px; margin-bottom: 12px; }
+    .header-title { font-size: 16px; font-weight: 900; color: var(--nv-green); }
+
+    /* Modül Sekmeleri */
+    .menu-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; scrollbar-width: none; }
+    .menu-btn { background: var(--nv-panel); color: var(--text-gray); border: 1px solid var(--nv-border); padding: 8px 12px; border-radius: 6px; white-space: nowrap; font-weight: 700; cursor: pointer; font-size: 12px; }
+    .menu-btn.active { background: var(--nv-green); color: #000; border-color: var(--nv-green); }
+
+    /* Form ve Kart Yapısı */
+    .card { background: var(--nv-card); border: 1px solid var(--nv-border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+    .card-title { font-size: 13px; font-weight: 700; color: var(--nv-green); margin-bottom: 12px; text-transform: uppercase; }
+
+    .form-group { margin-bottom: 10px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+
+    label { display: block; font-size: 11px; font-weight: 600; color: var(--text-gray); margin-bottom: 4px; text-transform: uppercase; }
+    input, select, textarea { width: 100%; background: #121215; border: 1px solid var(--nv-border); color: #fff; padding: 10px; border-radius: 6px; font-size: 13px; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--nv-green); }
+    input[type="text"] { text-transform: uppercase; }
+
+    /* Butonlar */
+    .btn-submit { width: 100%; padding: 13px; background: var(--nv-green); color: #000; border: none; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer; margin-top: 6px; }
+    .btn-submit:active { background: var(--nv-green-hover); }
+
+    .calc-box { background: #121810; border: 1px dashed var(--nv-green); border-radius: 8px; padding: 10px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-title">⚡ FIRTINA LOJİSTİK</div>
+    <span style="font-size:11px; color:var(--text-gray);">TELEGRAM KÖPRÜSÜ</span>
+  </div>
+
+  <!-- Üst Modül Seçimi -->
+  <div class="menu-bar">
+    <button class="menu-btn active" onclick="tabDegis('nakliye', this)">🚛 Sefer</button>
+    <button class="menu-btn" onclick="tabDegis('dikili_sefer', this)">🌲 Dikili Sefer</button>
+    <button class="menu-btn" onclick="tabDegis('dikili_veresiye', this)">💳 Dikili Veresiye</button>
+    <button class="menu-btn" onclick="tabDegis('eleman', this)">👷 Eleman & Yevmiye</button>
+    <button class="menu-btn" onclick="tabDegis('yakit', this)">⛽ Yakıt</button>
+    <button class="menu-btn" onclick="tabDegis('sabit', this)">🛡️ Sabit Gider</button>
+    <button class="menu-btn" onclick="tabDegis('ariza', this)">🛠️ Arıza & Sanayi</button>
+  </div>
+
+  <!-- 1. MODÜL: NAKLİYE SEFER -->
+  <div id="tab-nakliye" class="tab-pane">
+    <div class="card">
+      <div class="card-title">🚛 Yeni Nakliye Seferi</div>
+      <div class="grid-2">
+        <div><label>Tarih</label><input type="date" id="n_tarih"></div>
+        <div><label>Plaka</label><input type="text" id="n_plaka" placeholder="34 ABC 01"></div>
+      </div>
+      <div class="grid-2">
+        <div><label>Şoför</label><input type="text" id="n_sofor" placeholder="Şoför Adı"></div>
+        <div><label>Rampa Notu</label><input type="text" id="n_rampa" placeholder="Rampa"></div>
+      </div>
+      <div class="grid-2">
+        <div><label>Tonaj (Ton)</label><input type="number" step="0.01" id="n_tonaj" placeholder="26.50" oninput="hesaplaNakliye()"></div>
+        <div><label>Birim Fiyat (TL)</label><input type="number" step="0.01" id="n_fiyat" placeholder="850" oninput="hesaplaNakliye()"></div>
+      </div>
+      <div class="grid-3">
+        <div><label>Yakıt Gid.</label><input type="number" id="n_yakit" placeholder="0" oninput="hesaplaNakliye()"></div>
+        <div><label>Yükleme Gid.</label><input type="number" id="n_yukleme" placeholder="0" oninput="hesaplaNakliye()"></div>
+        <div><label>Harcırah Gid.</label><input type="number" id="n_harcirah" placeholder="0" oninput="hesaplaNakliye()"></div>
+      </div>
+
+      <div class="calc-box">
+        <span>Hesaplanan Net Kâr:</span>
+        <b style="color:var(--nv-green); font-size:15px;" id="n_lbl_kar">0.00 TL</b>
+      </div>
+      <button class="btn-submit" onclick="gonderNakliye()">⚡ SEFERİ PC PROGRAMINA İŞLE</button>
+    </div>
+  </div>
+
+  <!-- 2. MODÜL: DİKİLİ SEFER -->
+  <div id="tab-dikili_sefer" class="tab-pane hidden">
+    <div class="card">
+      <div class="card-title">🌲 Yeni Dikili Sefer Girişi</div>
+      <div class="grid-2">
+        <div><label>Tarih</label><input type="date" id="ds_tarih"></div>
+        <div><label>Plaka</label><input type="text" id="ds_plaka" placeholder="Plaka"></div>
+      </div>
+      <div class="grid-2">
+        <div><label>Şoför</label><input type="text" id="ds_sofor" placeholder="Şoför"></div>
+        <div><label>Kesimci</label><input type="text" id="ds_kesimci" placeholder="Kesimci"></div>
+      </div>
+      <div class="grid-3">
+        <div><label>Tonaj (Ton)</label><input type="number" step="0.01" id="ds_tonaj" placeholder="24.0"></div>
+        <div><label>Ster</label><input type="number" step="0.01" id="ds_ster" placeholder="0"></div>
+        <div>
+          <label>Malzeme</label>
+          <select id="ds_tur">
+            <option value="Odun">Odun</option>
+            <option value="Tomruk">Tomruk</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-submit" onclick="gonderDikiliSefer()">🌲 DİKİLİ SEFERİ KAYDET</button>
+    </div>
+  </div>
+
+  <!-- 3. MODÜL: DİKİLİ VERESİYE -->
+  <div id="tab-dikili_veresiye" class="tab-pane hidden">
+    <div class="card">
+      <div class="card-title">💳 Dikili Veresiye & Tahsilat</div>
+      <div class="grid-2">
+        <div><label>Tarih</label><input type="date" id="dv_tarih"></div>
+        <div><label>Müşteri / Alıcı</label><input type="text" id="dv_musteri" placeholder="Firma / Şahıs"></div>
+      </div>
+      <div class="grid-3">
+        <div><label>Tonaj (Ton)</label><input type="number" step="0.01" id="dv_tonaj" placeholder="Tonaj"></div>
+        <div><label>Birim Fiyat</label><input type="number" step="0.01" id="dv_fiyat" placeholder="Fiyat"></div>
+        <div><label>Alınan Ödeme</label><input type="number" step="0.01" id="dv_odeme" placeholder="0"></div>
+      </div>
+      <div class="form-group">
+        <label>Açıklama / Not</label>
+        <input type="text" id="dv_aciklama" placeholder="Makbuz no vb.">
+      </div>
+      <button class="btn-submit" onclick="gonderDikiliVeresiye()">💳 VERESİYEYİ İŞLE</button>
+    </div>
+  </div>
+
+  <!-- 4. MODÜL: ELEMAN & YEVMİYE -->
+  <div id="tab-eleman" class="tab-pane hidden">
+    <div class="card">
+      <div class="card-title">👷 Eleman Yevmiye & Avans</div>
+      <div class="grid-2">
+        <div><label>Tarih</label><input type="date" id="e_tarih"></div>
+        <div>
+          <label>Kategori</label>
+          <select id="e_kat">
+            <option value="Yüklemeciler">Yüklemeciler</option>
+            <option value="Şoförler">Şoförler</option>
+            <option value="Kesimciler">Kesimciler</option>
+            <option value="Diğer">Diğer</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div><label>Eleman Adı</label><input type="text" id="e_isim" placeholder="Ahmet Usta"></div>
+        <div>
+          <label>İşlem Türü</label>
+          <select id="e_tur">
+            <option value="Yevmiye Ekle">Yevmiye Ekle (+)</option>
+            <option value="Avans/Ödeme Düş">Avans / Ödeme Düş (-)</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div><label>Miktar (TL)</label><input type="number" step="0.01" id="e_miktar" placeholder="1500"></div>
+        <div><label>Açıklama</label><input type="text" id="e_aciklama" placeholder="Detay"></div>
+      </div>
+      <button class="btn-submit" onclick="gonderEleman()">👷 YEVMİYEYİ İŞLE</button>
+    </div>
+  </div>
+
+  <!-- 5. MODÜL: YAKIT -->
+  <div id="tab-yakit" class="tab-pane hidden">
+    <div class="card">
+      <div class="card-title">⛽ Yakıt Alım Girişi</div>
+      <div class="grid-2">
+        <div><label>Tarih</label><input type="date" id="y_tarih"></div>
+        <div><label>Plaka</label><input type="text" id="y_plaka" placeholder="Plaka"></div>
+      </div>
+      <div class="grid-3">
+        <div><label>Şoför</label><input type="text" id="y_sofor" placeholder="Şoför"></div>
+        <div><label>Litre</label><input type="number" step="0.01" id="y_litre" placeholder="350"></div>
+        <div><label>Tutar (TL)</label><input type="number" step="0.01" id="y_tutar" placeholder="14500"></div>
+      </div>
+      <button class="btn-submit" onclick="gonderYakit()">⛽ YAKITI KAYDET</button>
+    </div>
+  </div>
+
+  <!-- 6. MODÜL: SABİT GİDER & SİGORTA -->
+  <div id="tab-sabit" class="tab-pane hidden">
+    <div class="card">
+      <div class="card-title">🛡️ Sigorta, Maaş & Sabit Gider</div>
+      <div class="grid-2">
+        <div><label>Tarih</label><input type="date" id="sg_tarih"></div>
+        <div>
+          <label>Gider Türü</label>
+          <select id="sg_tur">
+            <option value="Trafik Sigortası">Trafik Sigortası</option>
+            <option value="Kasko">Kasko</option>
+            <option value="Şoför Maaşı">Şoför Maaşı</option>
+            <option value="Muayene / Harç">Muayene / Harç</option>
+            <option value="SGK / Bağkur">SGK / Bağkur</option>
+            <option value="Diğer Sabit Gider">Diğer Sabit Gider</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div><label>İlgili Plaka / Kişi</label><input type="text" id="sg_ilgili" placeholder="Plaka veya İsim"></div>
+        <div><label>Tutar (TL)</label><input type="number" step="0.01" id="sg_tutar" placeholder="25000"></div>
+      </div>
+      <div class="form-group">
+        <label>Açıklama / Poliçe No</label>
+        <input type="text" id="sg_aciklama" placeholder="Detay">
+      </div>
+      <button class="btn-submit" onclick="gonderSabitGider()">🛡️ SABİT GİDERİ İŞLE</button>
+    </div>
+  </div>
+
+  <!-- 7. MODÜL: ARIZA & SANAYİ -->
+  <div id="tab-ariza" class="tab-pane hidden">
+    <div class="card">
+      <div class="card-title">🛠️ Araç Arıza & Sanayi Masrafı</div>
+      <div class="grid-2">
+        <div><label>Tarih</label><input type="date" id="a_tarih"></div>
+        <div><label>Plaka</label><input type="text" id="a_plaka" placeholder="Plaka"></div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <label>Arıza Türü</label>
+          <select id="a_tur">
+            <option value="Motor / Mekanik">Motor / Mekanik</option>
+            <option value="Periyodik Bakım / Yağ">Periyodik Bakım / Yağ</option>
+            <option value="Lastik Değişimi">Lastik Değişimi</option>
+            <option value="Fren & Balata">Fren & Balata</option>
+            <option value="Elektrik / Elektronik">Elektrik / Elektronik</option>
+            <option value="Kaporta / Boya">Kaporta / Boya</option>
+            <option value="Diğer Sanayi Masrafı">Diğer Sanayi Masrafı</option>
+          </select>
+        </div>
+        <div><label>Tutar (TL)</label><input type="number" step="0.01" id="a_tutar" placeholder="8500"></div>
+      </div>
+      <div class="grid-2">
+        <div><label>Servis / Usta</label><input type="text" id="a_servis" placeholder="Usta Adı"></div>
+        <div><label>Yapılan İşlem</label><input type="text" id="a_islem" placeholder="Değişen parçalar..."></div>
+      </div>
+      <button class="btn-submit" onclick="gonderAriza()">🛠️ SANAYİ MASRAFINI İŞLE</button>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    function formatTRTarih(isoTarih) {
+      if(!isoTarih) return "";
+      const p = isoTarih.split('-');
+      return `${p[2]}.${p[1]}.${p[0]}`;
+    }
+
+    const bugun = new Date().toISOString().split('T')[0];
+    document.querySelectorAll('input[type="date"]').forEach(inp => inp.value = bugun);
+
+    function tabDegis(tabId, btn) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.menu-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.remove('hidden');
+      btn.classList.add('active');
+    }
+
+    function hesaplaNakliye() {
+      const tonaj = parseFloat(document.getElementById('n_tonaj').value) || 0;
+      const fiyat = parseFloat(document.getElementById('n_fiyat').value) || 0;
+      const yakit = parseFloat(document.getElementById('n_yakit').value) || 0;
+      const yukleme = parseFloat(document.getElementById('n_yukleme').value) || 0;
+      const harcirah = parseFloat(document.getElementById('n_harcirah').value) || 0;
+
+      const tutar = tonaj * fiyat;
+      const kdv = tutar * 0.20;
+      const tevkifat = kdv * 0.20;
+      const toplam = tutar + (kdv - tevkifat);
+      const kar = toplam - (yakit + yukleme + harcirah);
+
+      document.getElementById('n_lbl_kar').innerText = kar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + " TL";
+    }
+
+    function gonderNakliye() {
+      const veri = {
+        modul: "nakliye_sefer",
+        tarih: formatTRTarih(document.getElementById('n_tarih').value),
+        plaka: document.getElementById('n_plaka').value.trim().toUpperCase(),
+        sofor: document.getElementById('n_sofor').value.trim().toUpperCase() || "-",
+        tonaj: parseFloat(document.getElementById('n_tonaj').value) || 0,
+        fiyat: parseFloat(document.getElementById('n_fiyat').value) || 0,
+        rampa: document.getElementById('n_rampa').value.trim().toUpperCase() || "",
+        yakit: parseFloat(document.getElementById('n_yakit').value) || 0,
+        yukleme: parseFloat(document.getElementById('n_yukleme').value) || 0,
+        harcirah: parseFloat(document.getElementById('n_harcirah').value) || 0
+      };
+      if (!veri.plaka || veri.tonaj <= 0) return alert("Plaka ve tonaj zorunludur!");
+      tg.sendData(JSON.stringify(veri));
+    }
+
+    function gonderDikiliSefer() {
+      const veri = {
+        modul: "dikili_sefer",
+        tarih: formatTRTarih(document.getElementById('ds_tarih').value),
+        plaka: document.getElementById('ds_plaka').value.trim().toUpperCase(),
+        sofor: document.getElementById('ds_sofor').value.trim().toUpperCase() || "-",
+        kesimci: document.getElementById('ds_kesimci').value.trim().toUpperCase() || "-",
+        tonaj: parseFloat(document.getElementById('ds_tonaj').value) || 0,
+        ster: parseFloat(document.getElementById('ds_ster').value) || 0,
+        tur: document.getElementById('ds_tur').value
+      };
+      if (!veri.plaka || veri.tonaj <= 0) return alert("Plaka ve tonaj zorunludur!");
+      tg.sendData(JSON.stringify(veri));
+    }
+
+    function gonderDikiliVeresiye() {
+      const veri = {
+        modul: "dikili_veresiye",
+        tarih: formatTRTarih(document.getElementById('dv_tarih').value),
+        musteri: document.getElementById('dv_musteri').value.trim().toUpperCase(),
+        tonaj: parseFloat(document.getElementById('dv_tonaj').value) || 0,
+        fiyat: parseFloat(document.getElementById('dv_fiyat').value) || 0,
+        odeme: parseFloat(document.getElementById('dv_odeme').value) || 0,
+        aciklama: document.getElementById('dv_aciklama').value.trim()
+      };
+      if (!veri.musteri) return alert("Müşteri adı zorunludur!");
+      tg.sendData(JSON.stringify(veri));
+    }
+
+    function gonderEleman() {
+      const veri = {
+        modul: "eleman_yevmiye",
+        kategori: document.getElementById('e_kat').value,
+        tarih: formatTRTarih(document.getElementById('e_tarih').value),
+        eleman: document.getElementById('e_isim').value.trim().toUpperCase(),
+        tur: document.getElementById('e_tur').value,
+        miktar: parseFloat(document.getElementById('e_miktar').value) || 0,
+        aciklama: document.getElementById('e_aciklama').value.trim()
+      };
+      if (!veri.eleman || veri.miktar <= 0) return alert("Eleman adı ve miktar zorunludur!");
+      tg.sendData(JSON.stringify(veri));
+    }
+
+    function gonderYakit() {
+      const veri = {
+        modul: "yakit",
+        tarih: document.getElementById('y_tarih').value,
+        plaka: document.getElementById('y_plaka').value.trim().toUpperCase(),
+        sofor: document.getElementById('y_sofor').value.trim().toUpperCase() || "-",
+        litre: parseFloat(document.getElementById('y_litre').value) || 0,
+        tutar: parseFloat(document.getElementById('y_tutar').value) || 0
+      };
+      if (!veri.plaka || veri.tutar <= 0) return alert("Plaka ve tutar zorunludur!");
+      tg.sendData(JSON.stringify(veri));
+    }
+
+    function gonderSabitGider() {
+      const veri = {
+        modul: "sabit_gider",
+        tarih: formatTRTarih(document.getElementById('sg_tarih').value),
+        tur: document.getElementById('sg_tur').value,
+        ilgili: document.getElementById('sg_ilgili').value.trim().toUpperCase(),
+        tutar: parseFloat(document.getElementById('sg_tutar').value) || 0,
+        aciklama: document.getElementById('sg_aciklama').value.trim()
+      };
+      if (veri.tutar <= 0) return alert("Tutar zorunludur!");
+      tg.sendData(JSON.stringify(veri));
+    }
+
+    function gonderAriza() {
+      const veri = {
+        modul: "ariza_sanayi",
+        tarih: formatTRTarih(document.getElementById('a_tarih').value),
+        plaka: document.getElementById('a_plaka').value.trim().toUpperCase(),
+        tur: document.getElementById('a_tur').value,
+        tutar: parseFloat(document.getElementById('a_tutar').value) || 0,
+        servis: document.getElementById('a_servis').value.trim(),
+        islem: document.getElementById('a_islem').value.trim()
+      };
+      if (!veri.plaka || veri.tutar <= 0) return alert("Plaka ve tutar zorunludur!");
+      tg.sendData(JSON.stringify(veri));
+    }
+  </script>
+</body>
+</html>
