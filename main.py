@@ -31,9 +31,8 @@ def github_excel_guncelle(dosya_adi, basliklar, yeni_satir):
     """GitHub API üzerinden Excel dosyasını kontrol eder, yoksa oluşturur, varsa yeni satırı ekler."""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{dosya_adi}"
     headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28"
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
     }
     
     # 1. Dosya var mı kontrol et
