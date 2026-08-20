@@ -1,183 +1,166 @@
 import os
 import json
-import sqlite3
-from datetime import datetime
+import base64
+import requests
+import threading
+from io import BytesIO
 import openpyxl
 from openpyxl import load_workbook
-import pandas as pd
+from flask import Flask
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "8847383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
-WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/"  # HTML dosyanızın HTTPS linki
-GITHUB_TOKEN = "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"
+# ================= AYARLAR =================
+TELEGRAM_TOKEN = "8047383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
+GITHUB_TOKEN = "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"  # GitHub'dan aldığınız ghp_ ile başlayan tokenı buraya yazın
 GITHUB_REPO = "frtnbura/firtina-lojistik"
+WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/index.html"
+# ============================================
 
-# Mevcut Masaüstü Dosyaları
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_DOSYA = os.path.join(BASE_DIR, "nakliye_kamyon_hesap_takip.xlsx")
-EXCEL_DIKILI = os.path.join(BASE_DIR, "dikili_sefer_hesap_takip.xlsx")
-EXCEL_GIDERLER = os.path.join(BASE_DIR, "sabit_giderler_maaslar.xlsx")
-EXCEL_ARIZA = os.path.join(BASE_DIR, "ariza_sanayi_bakim.xlsx")
-DB_YAKIT = os.path.join(BASE_DIR, "yakit_takip.db")
+# Render'ın port beklemesini sağlayan arka plan web sunucusu
+web_app = Flask(__name__)
 
-KATEGORILER = {
-    "Yüklemeciler": os.path.join(BASE_DIR, "yevmiye_yuklemeciler.xlsx"),
-    "Şoförler": os.path.join(BASE_DIR, "yevmiye_soforler.xlsx"),
-    "Kesimciler": os.path.join(BASE_DIR, "yevmiye_kesimciler.xlsx"),
-    "Diğer": os.path.join(BASE_DIR, "yevmiye_diger.xlsx")
-}
+@web_app.route('/')
+def home():
+    return "Fırtına Lojistik 7/24 Bulut Sistemi Aktif!"
 
-AYLAR_TR = ["TÜMÜ", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    web_app.run(host='0.0.0.0', port=port)
 
-# --- TELEGRAM START ---
+def github_excel_guncelle(dosya_adi, basliklar, yeni_satir):
+    """GitHub üzerindeki Excel dosyasını günceller veya yoksa sıfırdan oluşturup satırı ekler."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{dosya_adi}"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    
+    r = requests.get(url, headers=headers)
+    wb = None
+    sha = None
+
+    if r.status_code == 200:
+        try:
+            file_data = r.json()
+            sha = file_data.get("sha")
+            raw_content = file_data.get("content", "")
+            if raw_content:
+                content = base64.b64decode(raw_content)
+                wb = load_workbook(BytesIO(content))
+                ws = wb.active
+        except Exception:
+            wb = None
+
+    if wb is None:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Kayitlar"
+        ws.append(basliklar)
+
+    ws.append(yeni_satir)
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    
+    encoded_content = base64.b64encode(out.read()).decode("utf-8")
+    payload = {
+        "message": f"Mobil Veri Kaydı: {yeni_satir[0]}",
+        "content": encoded_content
+    }
+    if sha:
+        payload["sha"] = sha
+        
+    requests.put(url, headers=headers, json=payload)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [[KeyboardButton(text="⚡ FIRTINA LOJİSTİK YÖNETİM", web_app=WebAppInfo(url=WEBAPP_URL))]]
-    reply_markup = ReplyKeyboardMarkup(kb, resize_keyboard=True)
     await update.message.reply_text(
-        "🚛 *FIRTINA LOJİSTİK - MOBİL ENTEGRASYON*\n\n"
-        "Aşağıdaki butona basarak Sefer, Dikili, Veresiye, Eleman/Yevmiye ve Sanayi masraflarını doğrudan bilgisayardaki programa işleyebilirsiniz.",
-        reply_markup=reply_markup,
+        "🚛 *Fırtına Lojistik 7/24 Bulut Sistemi Aktif!*\n\nAşağıdaki butona tıklayarak sefer, masraf, yakıt, yevmiye ve veresiye kayıtlarınızı girebilirsiniz.",
+        reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True),
         parse_mode="Markdown"
     )
 
-# --- TELEGRAM WEBAPP VERİLERİNİ EXCEL VE SQLITE'A İŞLEME ---
-async def web_app_veri_yakala(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    veri = json.loads(update.effective_message.web_app_data.data)
-    modul = veri.get("modul")
-    mesaj = "İşlem kaydedildi."
+async def veri_yakala(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        veri = json.loads(update.effective_message.web_app_data.data)
+        modul = veri.get("modul")
+        
+        # 1. NAKLİYE SEFERİ
+        if modul == "nakliye_sefer":
+            basliklar = ["Tarih", "Plaka", "Şoför", "Tonaj", "Birim Fiyat", "Yakıt", "Yükleme", "Harcırah", "Net Kar"]
+            satir = [
+                veri.get("tarih"), veri.get("plaka"), veri.get("sofor"), 
+                veri.get("tonaj"), veri.get("fiyat"), veri.get("yakit"), 
+                veri.get("yukleme"), veri.get("harcirah"), veri.get("net")
+            ]
+            github_excel_guncelle("nakliye_kamyon_hesap_takip.xlsx", basliklar, satir)
+            await update.message.reply_text(f"✅ *Sefer Kaydedildi!*\n📅 `{veri.get('tarih')}` | 🚛 `{veri.get('plaka')}`\n⚖️ *{veri.get('tonaj')} Ton* | 💵 *Net: {veri.get('net')} TL*", parse_mode="Markdown")
 
-    # 1. NAKLİYE SEFER MODÜLÜ
-    if modul == "nakliye_sefer":
-        tutar = veri["tonaj"] * veri["fiyat"]
-        kdv = tutar * 0.20
-        tevkifat = kdv * 0.20
-        toplam = tutar + (kdv - tevkifat)
-        kalan_kar = toplam - (veri["yakit"] + veri["yukleme"] + veri["harcirah"])
+        # 2. DİKİLİ SEFERİ
+        elif modul == "dikili_sefer":
+            basliklar = ["Tarih", "Bölge", "İstif", "Tür", "Tonaj", "Fiyat", "Tutar", "Plaka"]
+            satir = [
+                veri.get("tarih"), veri.get("bolge"), veri.get("istif"), 
+                veri.get("tur"), veri.get("tonaj"), veri.get("fiyat"), 
+                veri.get("tutar"), veri.get("plaka")
+            ]
+            github_excel_guncelle("dikili_sefer_hesap_takip.xlsx", basliklar, satir)
+            await update.message.reply_text(f"🌲 *Dikili Seferi Kaydedildi!*\n📍 `{veri.get('bolge')}` | 🪵 `{veri.get('tur')}`\n💰 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
-        wb = load_workbook(EXCEL_DOSYA)
-        ws = wb["Sefer Kayıtları"]
-        ws.append([
-            veri["tarih"], veri["plaka"], veri["sofor"], veri["tonaj"], veri["fiyat"],
-            tutar, kdv, tevkifat, toplam, veri["rampa"], veri["yakit"], veri["yukleme"],
-            veri["harcirah"], kalan_kar
-        ])
-        wb.save(EXCEL_DOSYA)
+        # 3. DİKİLİ VERESİYE & TAHSİLAT
+        elif modul == "dikili_veresiye":
+            basliklar = ["Tarih", "Müşteri", "İşlem Türü", "Tutar", "Açıklama"]
+            satir = [veri.get("tarih"), veri.get("musteri"), veri.get("islem_turu"), veri.get("tutar"), veri.get("aciklama")]
+            github_excel_guncelle("dikili_veresiye_takip.xlsx", basliklar, satir)
+            await update.message.reply_text(f"📑 *Veresiye/Tahsilat Kaydedildi!*\n👤 `{veri.get('musteri')}` | 💵 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
-        mesaj = (
-            f"✅ *NAKLİYE SEFERİ PC'YE EKLENDİ!*\n"
-            f"📅 Tarih: `{veri['tarih']}` | 🚛 Plaka: `{veri['plaka']}`\n"
-            f"⚖️ Tonaj: *{veri['tonaj']:,.2f} Ton* | 💰 Net Kâr: *{kalan_kar:,.2f} TL*"
-        )
+        # 4. ELEMAN YEVMİYE & AVANS (Kategoriye Göre Dosyaya Ayrılır)
+        elif modul == "yevmiye":
+            kategori = veri.get("kategori", "diger").lower()
+            dosya_haritasi = {
+                "yuklemeci": "yevmiye_yuklemeciler.xlsx",
+                "sofor": "yevmiye_soforler.xlsx",
+                "kesimci": "yevmiye_kesimciler.xlsx",
+                "diger": "yevmiye_diger.xlsx"
+            }
+            dosya_adi = dosya_haritasi.get(kategori, "yevmiye_diger.xlsx")
+            basliklar = ["Tarih", "İsim", "Kategori", "İşlem Türü", "Tutar / Yevmiye", "Açıklama"]
+            satir = [veri.get("tarih"), veri.get("isim"), veri.get("kategori"), veri.get("islem_turu"), veri.get("tutar"), veri.get("aciklama")]
+            github_excel_guncelle(dosya_adi, basliklar, satir)
+            await update.message.reply_text(f"👷 *Yevmiye/Avans Kaydedildi!*\n👤 `{veri.get('isim')}` ({veri.get('kategori')})\n💰 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
-    # 2. DİKİLİ SEFER MODÜLÜ
-    elif modul == "dikili_sefer":
-        wb = load_workbook(EXCEL_DIKILI)
-        ws = wb["Dikili_Seferler"]
-        ws.append([
-            veri["tarih"], veri["plaka"], veri["sofor"], veri["kesimci"],
-            veri["tonaj"], veri["ster"], veri["tur"]
-        ])
-        wb.save(EXCEL_DIKILI)
+        # 5. YAKIT KAYDI
+        elif modul == "yakit":
+            basliklar = ["Tarih", "Plaka", "Litre", "Birim Fiyat", "Toplam Tutar", "Kilometre", "İstasyon"]
+            satir = [
+                veri.get("tarih"), veri.get("plaka"), veri.get("litre"), 
+                veri.get("birim_fiyat"), veri.get("tutar"), veri.get("km"), veri.get("istasyon")
+            ]
+            github_excel_guncelle("yakit_kayitlari.xlsx", basliklar, satir)
+            await update.message.reply_text(f"⛽ *Yakıt Kaydedildi!*\n🚛 `{veri.get('plaka')}` | ⛽ `{veri.get('litre')} Lt`\n💰 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
-        mesaj = (
-            f"🌲 *DİKİLİ SEFERİ EKLENDİ!*\n"
-            f"📅 `{veri['tarih']}` | 🚛 `{veri['plaka']}`\n"
-            f"⚖️ {veri['tonaj']:,.2f} Ton / {veri['ster']} Ster ({veri['tur']})"
-        )
+        # 6. SABİT GİDERLER & MAAŞLAR
+        elif modul == "sabit_gider":
+            basliklar = ["Tarih", "Gider Türü", "İlgili Kişi / Plaka", "Tutar", "Açıklama"]
+            satir = [veri.get("tarih"), veri.get("gider_turu"), veri.get("ilgili"), veri.get("tutar"), veri.get("aciklama")]
+            github_excel_guncelle("sabit_giderler_maaslar.xlsx", basliklar, satir)
+            await update.message.reply_text(f"🏢 *Sabit Gider Kaydedildi!*\n📋 `{veri.get('gider_turu')}` | 💵 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
-    # 3. DİKİLİ VERESİYE MODÜLÜ
-    elif modul == "dikili_veresiye":
-        toplam_tutar = veri["tonaj"] * veri["fiyat"]
-        kalan_borc = toplam_tutar - veri["odeme"]
-        wb = load_workbook(EXCEL_DIKILI)
-        ws = wb["Dikili_Veresiye"]
-        vid = ws.max_row
-        ws.append([
-            vid, veri["tarih"], veri["musteri"], veri["tonaj"], veri["fiyat"],
-            toplam_tutar, veri["odeme"], kalan_borc, veri["aciklama"]
-        ])
-        wb.save(EXCEL_DIKILI)
+        # 7. ARIZA & SANAYİ & BAKIM
+        elif modul == "ariza_bakim":
+            basliklar = ["Tarih", "Plaka", "Yapılan İşlem / Parça", "Usta / Servis", "Tutar", "Açıklama"]
+            satir = [veri.get("tarih"), veri.get("plaka"), veri.get("islem"), veri.get("servis"), veri.get("tutar"), veri.get("aciklama")]
+            github_excel_guncelle("ariza_sanayi_bakim.xlsx", basliklar, satir)
+            await update.message.reply_text(f"🔧 *Arıza/Bakım Masrafı Kaydedildi!*\n🚛 `{veri.get('plaka')}` | 🛠️ `{veri.get('islem')}`\n💰 *{veri.get('tutar')} TL*", parse_mode="Markdown")
 
-        mesaj = (
-            f"💳 *DİKİLİ VERESİYE İŞLENDİ!*\n"
-            f"👤 Müşteri: *{veri['musteri']}*\n"
-            f"💵 Toplam: {toplam_tutar:,.2f} TL | Tahsilat: {veri['odeme']:,.2f} TL\n"
-            f"📌 Kalan Borç: *{kalan_borc:,.2f} TL*"
-        )
-
-    # 4. ELEMAN & YEVMİYE MODÜLÜ
-    elif modul == "eleman_yevmiye":
-        dosya = KATEGORILER.get(veri["kategori"], KATEGORILER["Diğer"])
-        df_eski = pd.read_excel(dosya, sheet_name="Yevmiye Geçmişi")
-        kimlik = int(df_eski["Kimlik"].max() + 1) if len(df_eski) > 0 and not pd.isna(df_eski["Kimlik"].max()) else 1
-
-        yeni_satir = pd.DataFrame([{
-            "Kimlik": kimlik, "Tarih": veri["tarih"], "Eleman Adı": veri["eleman"],
-            "İşlem Türü": veri["tur"], "Miktar (TL)": veri["miktar"], "Açıklama": veri["aciklama"]
-        }])
-        df_yeni = pd.concat([df_eski, yeni_satir], ignore_index=True)
-
-        # Özet güncelleme
-        elemanlar = df_yeni["Eleman Adı"].unique()
-        ozet = []
-        for e in elemanlar:
-            e_df = df_yeni[df_yeni["Eleman Adı"] == e]
-            t_y = e_df[e_df["İşlem Türü"] == "Yevmiye Ekle"]["Miktar (TL)"].sum()
-            t_a = e_df[e_df["İşlem Türü"] == "Avans/Ödeme Düş"]["Miktar (TL)"].sum()
-            ozet.append({"Eleman Adı": e, "Toplam Hak Edilen": t_y, "Toplam Ödenen/Avans": t_a, "Kalan Alacak (TL)": t_y - t_a})
-
-        with pd.ExcelWriter(dosya, engine='openpyxl') as writer:
-            df_yeni.to_excel(writer, sheet_name="Yevmiye Geçmişi", index=False)
-            pd.DataFrame(ozet).to_excel(writer, sheet_name="Eleman Özet Listesi", index=False)
-
-        mesaj = (
-            f"👷 *YEVMİYE KAYDEDİLDİ!*\n"
-            f"🏷️ Kategori: {veri['kategori']} | 👤 Eleman: *{veri['eleman']}*\n"
-            f"📝 İşlem: {veri['tur']} | 💵 Tutar: *{veri['miktar']:,.2f} TL*"
-        )
-
-    # 5. YAKIT MODÜLÜ
-    elif modul == "yakit":
-        conn = sqlite3.connect(DB_YAKIT)
-        cur = conn.cursor()
-        cur.execute("INSERT INTO yakit_kayitlari (plaka, tarih, litre, tutar, sofor) VALUES (?, ?, ?, ?, ?)",
-                    (veri["plaka"], veri["tarih"], veri["litre"], veri["tutar"], veri["sofor"]))
-        conn.commit()
-        conn.close()
-
-        mesaj = f"⛽ *YAKIT İŞLENDİ:* `{veri['plaka']}` - {veri['litre']} Litre (*{veri['tutar']:,.2f} TL*)"
-
-    # 6. SABİT GİDER & SİGORTA MODÜLÜ
-    elif modul == "sabit_gider":
-        dt = datetime.strptime(veri["tarih"], "%d.%m.%Y")
-        yil = str(dt.year)
-        wb = load_workbook(EXCEL_GIDERLER)
-        ws = wb["Sabit_Giderler"]
-        gid = ws.max_row
-        ws.append([gid, veri["tarih"], yil, veri["tur"], veri["ilgili"], veri["tutar"], veri["aciklama"]])
-        wb.save(EXCEL_GIDERLER)
-
-        mesaj = f"🛡️ *GİDER İŞLENDİ:* {veri['tur']} ({veri['ilgili']}) - *{veri['tutar']:,.2f} TL*"
-
-    # 7. ARIZA & SANAYİ MODÜLÜ
-    elif modul == "ariza_sanayi":
-        dt = datetime.strptime(veri["tarih"], "%d.%m.%Y")
-        yil = str(dt.year)
-        ay = AYLAR_TR[dt.month]
-        wb = load_workbook(EXCEL_ARIZA)
-        ws = wb["Ariza_Bakim"]
-        aid = ws.max_row
-        ws.append([aid, veri["tarih"], yil, ay, veri["plaka"], veri["tur"], veri["tutar"], veri["servis"], veri["islem"]])
-        wb.save(EXCEL_ARIZA)
-
-        mesaj = f"🛠️ *SANAYİ MASRAFI İŞLENDİ:* `{veri['plaka']}` - {veri['tur']} (*{veri['tutar']:,.2f} TL*)"
-
-    await update.message.reply_text(mesaj, parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"❌ *Kayıt işlenirken hata oluştu:* `{str(e)}`", parse_mode="Markdown")
 
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
+    threading.Thread(target=run_flask, daemon=True).start()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_veri_yakala))
+    app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, veri_yakala))
     print("Fırtına Lojistik Telegram Köprüsü Başlatıldı...")
     app.run_polling()
