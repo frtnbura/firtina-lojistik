@@ -7,7 +7,7 @@ from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ================= AYARLAR =================
-TELEGRAM_TOKEN = "8847383930:AAH30_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
+TELEGRAM_TOKEN = "8047383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
 # Yukarıda kopyaladığınız Google Apps Script URL'sini buraya yapıştırın:
 GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbxZ7-UaIdc9iMzW6N4svrHKXol7E7R37RicIhLyKOaPs2KNIOlOJkZ31v1eHLxmtITy5A/exec"
 WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/index.html"
