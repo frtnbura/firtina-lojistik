@@ -12,7 +12,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 # ================= AYARLAR =================
 TELEGRAM_TOKEN = "8847383930:AAH3O_2GC9x-iERPfr7FqdiX8zzwMhSnqVA"
-GITHUB_TOKEN = "ghp_y9JPiEEPtvozMKPfmNcaV41WE7BBnL4RTwtw"
+GITHUB_TOKEN = "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"
 GITHUB_REPO = "frtnbura/firtina-lojistik"
 WEBAPP_URL = "https://frtnbura.github.io/firtina-lojistik/index.html"
 # ============================================
